@@ -80,6 +80,27 @@ type Player struct {
 	MatchesPlayed   int               `json:"matchesPlayed"`   // Total matches
 	RecentMatches   int               `json:"recentMatches"`   // Matches in last 30 days
 	VoiceActivity   string            `json:"voiceActivity"`   // "silent", "callouts", "talkative"
+	// Position tendencies per map
+	MapTendencies  []MapTendency      `json:"mapTendencies,omitempty"`
+	// Gun recommendations against this player
+	CounterGuns    []CounterGun       `json:"counterGuns,omitempty"`
+}
+
+// MapTendency describes where a player tends to go on each map
+type MapTendency struct {
+	Map           string   `json:"map"`
+	TSideSpots    []string `json:"tSideSpots"`    // Where they go on T side
+	CTSideSpots   []string `json:"ctSideSpots"`   // Where they hold on CT side
+	Behavior      string   `json:"behavior"`      // "aggressive push", "passive hold", "rotator", etc.
+	PreferredSite string   `json:"preferredSite"` // A, B, or Mid
+	TipAgainst    string   `json:"tipAgainst"`    // How to counter them
+}
+
+// CounterGun recommends guns to use against this specific player
+type CounterGun struct {
+	Gun       string `json:"gun"`
+	Reason    string `json:"reason"`
+	Situation string `json:"situation"` // "close range", "long range", "eco", "buy round"
 }
 
 // PositionPoint for heatmap data
@@ -165,8 +186,21 @@ type EnemyWeakness struct {
 }
 
 // MatchAnalysis represents the full analysis response
+// MatchInfo contains match status information
+type MatchInfo struct {
+	Status       string   `json:"status"`       // VOTING, CONFIGURING, READY, ONGOING, FINISHED, CANCELLED
+	MapChosen    bool     `json:"mapChosen"`    // Whether the map has been selected
+	GameStarted  bool     `json:"gameStarted"`  // Whether the game has actually started
+	SelectedMaps []string `json:"selectedMaps"` // Maps that were picked
+	BannedMaps   []string `json:"bannedMaps"`   // Maps that were banned
+	ConfiguredAt int64    `json:"configuredAt"` // When the match lobby was configured
+	StartedAt    int64    `json:"startedAt"`    // When the game started
+	FinishedAt   int64    `json:"finishedAt"`   // When the game finished
+}
+
 type MatchAnalysis struct {
 	MatchID            string              `json:"matchId"`
+	MatchInfo          MatchInfo           `json:"matchInfo"`
 	YourTeam           TeamAnalysis        `json:"yourTeam"`
 	EnemyTeam          TeamAnalysis        `json:"enemyTeam"`
 	RecommendedMap     string              `json:"recommendedMap"`
@@ -194,8 +228,19 @@ type AnalyzeRequest struct {
 
 // FACEITMatchResponse from FACEIT API
 type FACEITMatchResponse struct {
-	MatchID string `json:"match_id"`
-	Teams   struct {
+	MatchID      string `json:"match_id"`
+	Status       string `json:"status"` // VOTING, CONFIGURING, READY, ONGOING, FINISHED, CANCELLED
+	ConfiguredAt int64  `json:"configured_at"`
+	StartedAt    int64  `json:"started_at"`
+	FinishedAt   int64  `json:"finished_at"`
+	Voting       *struct {
+		Map struct {
+			Pick   []string `json:"pick"`
+			Voted  []string `json:"voted"`
+			Banned []string `json:"banned"`
+		} `json:"map"`
+	} `json:"voting"`
+	Teams struct {
 		Faction1 struct {
 			Roster []FACEITPlayer `json:"roster"`
 		} `json:"faction1"`
@@ -690,7 +735,25 @@ func fetchRealMatchData(matchID string, username string) (*MatchAnalysis, error)
 	enemyPlayers := fetchPlayersStats(enemyRoster, client)
 
 	// Analyze and generate recommendations
-	return analyzeTeams(matchID, yourPlayers, enemyPlayers), nil
+	analysis := analyzeTeams(matchID, yourPlayers, enemyPlayers)
+	
+	// Populate match info from FACEIT API response
+	analysis.MatchInfo = MatchInfo{
+		Status:       matchData.Status,
+		MapChosen:    matchData.Voting != nil && len(matchData.Voting.Map.Pick) > 0,
+		GameStarted:  matchData.StartedAt > 0,
+		ConfiguredAt: matchData.ConfiguredAt,
+		StartedAt:    matchData.StartedAt,
+		FinishedAt:   matchData.FinishedAt,
+	}
+	
+	// Extract selected and banned maps if voting exists
+	if matchData.Voting != nil {
+		analysis.MatchInfo.SelectedMaps = matchData.Voting.Map.Pick
+		analysis.MatchInfo.BannedMaps = matchData.Voting.Map.Banned
+	}
+	
+	return analysis, nil
 }
 
 func fetchPlayersStats(roster []FACEITPlayer, client *http.Client) []Player {
@@ -1073,6 +1136,10 @@ func enhancePlayers(players []Player) {
 		} else {
 			players[i].VoiceActivity = "talkative"
 		}
+		
+		// Generate map tendencies and counter guns for enemy analysis
+		players[i].MapTendencies = generateMapTendencies(players[i])
+		players[i].CounterGuns = generateCounterGuns(players[i])
 	}
 }
 
@@ -2126,4 +2193,365 @@ func clamp(val, min, max int) int {
 		return max
 	}
 	return val
+}
+
+// generateMapTendencies creates position tendency data for each map based on player type
+func generateMapTendencies(p Player) []MapTendency {
+	tendencies := []MapTendency{}
+	
+	playerType := strings.ToLower(p.PlayerType)
+	playstyle := strings.ToLower(p.Playstyle)
+	
+	for _, mapName := range cs2Maps {
+		tendency := MapTendency{
+			Map: mapName,
+		}
+		
+		// Generate tendencies based on player type and playstyle
+		switch {
+		case strings.Contains(playerType, "awp"):
+			tendency.TSideSpots = getAWPTSideSpots(mapName)
+			tendency.CTSideSpots = getAWPCTSideSpots(mapName)
+			tendency.Behavior = "holds long angles, repositions between rounds"
+			tendency.PreferredSite = getAWPPreferredSite(mapName)
+			tendency.TipAgainst = "Smoke their AWP spots, push with flashes, avoid long range duels"
+			
+		case strings.Contains(playerType, "entry"):
+			tendency.TSideSpots = getEntryTSideSpots(mapName)
+			tendency.CTSideSpots = getEntryCTSideSpots(mapName)
+			tendency.Behavior = "aggressive pushes, first contact, fast peeks"
+			tendency.PreferredSite = "varies"
+			tendency.TipAgainst = "Pre-aim common entry points, use utility to slow them down"
+			
+		case strings.Contains(playerType, "lurk"):
+			tendency.TSideSpots = getLurkTSideSpots(mapName)
+			tendency.CTSideSpots = getLurkCTSideSpots(mapName)
+			tendency.Behavior = "flanks, late rotations, catches rotators"
+			tendency.PreferredSite = "opposite of main push"
+			tendency.TipAgainst = "Watch flanks, leave someone holding your back, use info smokes"
+			
+		case strings.Contains(playerType, "support"):
+			tendency.TSideSpots = getSupportTSideSpots(mapName)
+			tendency.CTSideSpots = getSupportCTSideSpots(mapName)
+			tendency.Behavior = "throws utility, trades entry fraggers, plays mid-round"
+			tendency.PreferredSite = "A"
+			tendency.TipAgainst = "Rush before utility, isolate them without teammates"
+			
+		default: // Anchor/IGL
+			tendency.TSideSpots = getDefaultTSideSpots(mapName)
+			tendency.CTSideSpots = getDefaultCTSideSpots(mapName)
+			tendency.Behavior = "holds site, passive gameplay, waits for info"
+			tendency.PreferredSite = "B"
+			tendency.TipAgainst = "Execute fast to overwhelm their position"
+		}
+		
+		// Adjust behavior based on playstyle
+		if playstyle == "aggressive" {
+			tendency.Behavior = "very aggressive, " + tendency.Behavior
+			tendency.TipAgainst = "Play passive and let them come to you. " + tendency.TipAgainst
+		} else if playstyle == "passive" {
+			tendency.Behavior = "very passive, " + tendency.Behavior
+			tendency.TipAgainst = "Use utility to force them out of position. " + tendency.TipAgainst
+		}
+		
+		tendencies = append(tendencies, tendency)
+	}
+	
+	return tendencies
+}
+
+// Map-specific position functions for AWPers
+func getAWPTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"T Spawn (holding mid)", "A Ramp", "Palace balcony"},
+		"Inferno": {"Banana", "Second mid", "Apartments"},
+		"Dust2":   {"Long doors", "Mid doors", "T spawn ramp"},
+		"Nuke":    {"Outside", "Lobby", "Ramp"},
+		"Ancient": {"Mid", "Main entrance", "B ramp"},
+		"Anubis":  {"Mid", "A main", "B canal"},
+		"Vertigo": {"T ramp", "Mid", "B stairs"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Main positions", "Spawn area"}
+}
+
+func getAWPCTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"Ticket booth", "AWP nest", "Jungle"},
+		"Inferno": {"Pit", "Arch", "B site back"},
+		"Dust2":   {"A platform", "Mid doors", "B car"},
+		"Nuke":    {"Heaven", "Outside silo", "Ramp"},
+		"Ancient": {"A CT", "B pillar", "Mid cubby"},
+		"Anubis":  {"A temple", "B ruins", "Mid connector"},
+		"Vertigo": {"A elevator", "B window", "Mid"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Site angles", "Common spots"}
+}
+
+func getAWPPreferredSite(mapName string) string {
+	prefs := map[string]string{
+		"Mirage":  "Mid/A",
+		"Inferno": "B (Banana)",
+		"Dust2":   "A (Long)",
+		"Nuke":    "Outside",
+		"Ancient": "Mid",
+		"Anubis":  "Mid",
+		"Vertigo": "A",
+	}
+	if p, ok := prefs[mapName]; ok {
+		return p
+	}
+	return "A"
+}
+
+// Entry fragger positions
+func getEntryTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"A ramp rush", "B apartments entry", "Palace entry"},
+		"Inferno": {"Banana first contact", "Apps push", "Mid peek"},
+		"Dust2":   {"Long doors entry", "B tunnels entry", "Mid to short"},
+		"Nuke":    {"Ramp entry", "Outside rush", "Secret push"},
+		"Ancient": {"A main push", "B main entry", "Mid first contact"},
+		"Anubis":  {"A main entry", "B main push", "Mid control"},
+		"Vertigo": {"A ramp rush", "B stairs entry", "Mid push"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Main entry points", "Rush positions"}
+}
+
+func getEntryCTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"Aggressive connector push", "Apps aggro", "A ramp peek"},
+		"Inferno": {"Aggressive banana", "Aggressive arch", "Apps contest"},
+		"Dust2":   {"Long aggro", "Aggressive mid peek", "B push"},
+		"Nuke":    {"Aggressive outside", "Ramp peek", "Secret push"},
+		"Ancient": {"Mid aggro", "A main contest", "B aggro"},
+		"Anubis":  {"Mid push", "A aggro", "B aggro"},
+		"Vertigo": {"Ramp push", "Mid aggro", "B stairs peek"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Aggressive holds", "Early peeks"}
+}
+
+// Lurker positions
+func getLurkTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"Palace (late)", "Underpass", "T spawn waiting"},
+		"Inferno": {"T apps (late)", "T side mid", "Alt mid"},
+		"Dust2":   {"Lower tunnels (late)", "T spawn mid", "Outside long"},
+		"Nuke":    {"Lobby lurk", "T roof", "Outside lurk"},
+		"Ancient": {"Cave lurk", "T spawn timing", "Mid late"},
+		"Anubis":  {"Palace lurk", "B canal late", "T main late"},
+		"Vertigo": {"T spawn timing", "Ladder room", "Mid lurk"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Flanking routes", "Late timings"}
+}
+
+func getLurkCTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"A site rotate", "Market passive", "CT spawn timing"},
+		"Inferno": {"CT spawn rotate", "Library late", "Pit passive"},
+		"Dust2":   {"CT mid", "Long rotate", "B site anchor"},
+		"Nuke":    {"Heaven rotate", "Outside late rotate", "Secret"},
+		"Ancient": {"CT spawn late", "A site passive", "Cave"},
+		"Anubis":  {"CT spawn timing", "A passive", "B rotate"},
+		"Vertigo": {"CT spawn", "A elevator passive", "B back"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Rotation paths", "Passive holds"}
+}
+
+// Support positions
+func getSupportTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"Behind entry (A)", "B apps (utility)", "Palace support"},
+		"Inferno": {"Banana (behind entry)", "Apps support", "Mid flash"},
+		"Dust2":   {"Long support", "B tunnels flash", "Mid to B support"},
+		"Nuke":    {"Ramp support", "Outside (utility)", "Lobby flash"},
+		"Ancient": {"A main (behind entry)", "Mid support", "B support"},
+		"Anubis":  {"A support", "B support", "Mid flash"},
+		"Vertigo": {"A ramp support", "B stairs support", "Mid utility"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Behind entry", "Utility positions"}
+}
+
+func getSupportCTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"Connector (utility)", "B short support", "CT spawn retake"},
+		"Inferno": {"Arch (retake)", "B anchor (utility)", "CT retake"},
+		"Dust2":   {"Short support", "B site (utility)", "CT retake"},
+		"Nuke":    {"Heaven support", "Ramp (utility)", "Secret"},
+		"Ancient": {"CT (retake)", "A cubby", "B pillar"},
+		"Anubis":  {"A site support", "B site (utility)", "CT retake"},
+		"Vertigo": {"A site support", "B site (utility)", "CT retake"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Retake positions", "Support holds"}
+}
+
+// Default/Anchor positions
+func getDefaultTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"Default mid", "A main", "B apps default"},
+		"Inferno": {"Top mid", "Second mid", "T apps"},
+		"Dust2":   {"T spawn", "Upper tunnels", "Long corner"},
+		"Nuke":    {"Lobby", "T spawn", "Outside default"},
+		"Ancient": {"T spawn", "Mid default", "B main"},
+		"Anubis":  {"T spawn", "Mid default", "A main"},
+		"Vertigo": {"T spawn", "A ramp default", "Mid default"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Safe positions", "Default setup"}
+}
+
+func getDefaultCTSideSpots(mapName string) []string {
+	spots := map[string][]string{
+		"Mirage":  {"B site anchor", "CT spawn", "A default"},
+		"Inferno": {"B site anchor", "A site", "Arch"},
+		"Dust2":   {"B site anchor", "A site", "Mid"},
+		"Nuke":    {"B site", "A site anchor", "Heaven"},
+		"Ancient": {"B site anchor", "A site", "Mid"},
+		"Anubis":  {"B site anchor", "A site", "CT spawn"},
+		"Vertigo": {"B site anchor", "A site", "Mid"},
+	}
+	if s, ok := spots[mapName]; ok {
+		return s
+	}
+	return []string{"Site anchors", "Passive holds"}
+}
+
+// generateCounterGuns recommends guns to use against this specific player
+func generateCounterGuns(p Player) []CounterGun {
+	guns := []CounterGun{}
+	
+	playerType := strings.ToLower(p.PlayerType)
+	hsPercent := p.AvgHSPercent
+	kd := p.AvgKD
+	playstyle := strings.ToLower(p.Playstyle)
+	
+	// Counter based on player type
+	switch {
+	case strings.Contains(playerType, "awp"):
+		guns = append(guns, CounterGun{
+			Gun:       "SSG 08",
+			Reason:    "Cheaper AWP alternative - win the duel with mobility and quick peeks",
+			Situation: "eco/force buy",
+		})
+		guns = append(guns, CounterGun{
+			Gun:       "MAC-10 / MP9",
+			Reason:    "Close the distance fast - AWPs struggle in close range",
+			Situation: "force buy",
+		})
+		guns = append(guns, CounterGun{
+			Gun:       "AK-47",
+			Reason:    "One tap before they can scope in - wide peek and shoot",
+			Situation: "buy round",
+		})
+		
+	case strings.Contains(playerType, "entry"):
+		guns = append(guns, CounterGun{
+			Gun:       "M4A1-S",
+			Reason:    "Silenced to hide your position - spray them down as they entry",
+			Situation: "buy round",
+		})
+		guns = append(guns, CounterGun{
+			Gun:       "MAG-7 / Nova",
+			Reason:    "Hold close angles - one shot them as they rush in",
+			Situation: "eco/force buy",
+		})
+		
+	case strings.Contains(playerType, "lurk"):
+		guns = append(guns, CounterGun{
+			Gun:       "Five-SeveN / Tec-9",
+			Reason:    "Good for watching flanks - accurate running shots",
+			Situation: "eco",
+		})
+		guns = append(guns, CounterGun{
+			Gun:       "M4A4",
+			Reason:    "Higher fire rate for multiple enemies - expect their lurker to come late",
+			Situation: "buy round",
+		})
+	}
+	
+	// Counter based on headshot percentage
+	if hsPercent >= 55 {
+		guns = append(guns, CounterGun{
+			Gun:       "M4A4 / AK-47",
+			Reason:    fmt.Sprintf("High HS player (%d%%) - use accurate rifles and aim duels", hsPercent),
+			Situation: "buy round",
+		})
+	} else if hsPercent < 40 {
+		guns = append(guns, CounterGun{
+			Gun:       "P90",
+			Reason:    fmt.Sprintf("Low HS player (%d%%) - spray them down before they spray you", hsPercent),
+			Situation: "force buy",
+		})
+	}
+	
+	// Counter based on K/D
+	if kd < 0.9 {
+		guns = append(guns, CounterGun{
+			Gun:       "Desert Eagle",
+			Reason:    fmt.Sprintf("Weak player (%.2f K/D) - go for the one tap, high risk high reward", kd),
+			Situation: "eco",
+		})
+	} else if kd > 1.3 {
+		guns = append(guns, CounterGun{
+			Gun:       "AWP",
+			Reason:    fmt.Sprintf("Strong player (%.2f K/D) - don't peek them, hold angles with AWP", kd),
+			Situation: "buy round",
+		})
+	}
+	
+	// Counter based on playstyle
+	if playstyle == "aggressive" {
+		guns = append(guns, CounterGun{
+			Gun:       "MAG-7 / Nova",
+			Reason:    "Aggressive player - hold tight angles and let them come to you",
+			Situation: "force buy",
+		})
+	} else if playstyle == "passive" {
+		guns = append(guns, CounterGun{
+			Gun:       "AK-47 + Flash",
+			Reason:    "Passive player - flash and wide peek to catch them off guard",
+			Situation: "buy round",
+		})
+	}
+	
+	// Ensure we have at least some recommendations
+	if len(guns) < 2 {
+		guns = append(guns, CounterGun{
+			Gun:       "AK-47 / M4A1-S",
+			Reason:    "Standard rifle - reliable in all situations",
+			Situation: "buy round",
+		})
+		guns = append(guns, CounterGun{
+			Gun:       "USP-S / Glock",
+			Reason:    "Reliable pistol - aim for the head",
+			Situation: "pistol round",
+		})
+	}
+	
+	return guns
 }

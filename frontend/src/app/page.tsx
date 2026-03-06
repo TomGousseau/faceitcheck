@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Target, Users, Map, Shield, Crosshair, Zap, ChevronRight, Loader2, Trophy, Sword, User, Layers, AlertTriangle, Gamepad2, DollarSign, RefreshCw, X, Flame, BarChart3, TrendingUp, Eye, Move, Skull, Download, Settings, Wifi, WifiOff, Volume2, VolumeX, MessageCircle, Clock, MapPin, Mic, MicOff, AlertOctagon, Star, ThumbsDown } from 'lucide-react'
+import { Search, Target, Users, Map, Shield, Crosshair, Zap, ChevronRight, ChevronUp, ChevronDown, Loader2, Trophy, Sword, User, Layers, AlertTriangle, Gamepad2, DollarSign, RefreshCw, X, Flame, BarChart3, TrendingUp, Eye, Move, Skull, Download, Settings, Wifi, WifiOff, Volume2, VolumeX, MessageCircle, Clock, MapPin, Mic, MicOff, AlertOctagon, Star, ThumbsDown, Check, Activity, Ban, Crosshair as CrosshairIcon, Navigation } from 'lucide-react'
 
 // ===== VISUAL COMPONENT: Pie Chart =====
 const PieChart = ({ data, size = 120, innerRadius = 0.5 }: { 
@@ -525,6 +525,35 @@ interface MapSpecificStats {
   hsPercent: number
 }
 
+// Match status info from FACEIT API
+interface MatchInfo {
+  status: string // VOTING, CONFIGURING, READY, ONGOING, FINISHED, CANCELLED
+  mapChosen: boolean
+  gameStarted: boolean
+  selectedMaps: string[]
+  bannedMaps: string[]
+  configuredAt: number
+  startedAt: number
+  finishedAt: number
+}
+
+// Position tendency data for enemy analysis
+interface MapTendency {
+  map: string
+  tSideSpots: string[]
+  ctSideSpots: string[]
+  behavior: string
+  preferredSite: string
+  tipAgainst: string
+}
+
+// Counter gun recommendations against specific player
+interface CounterGun {
+  gun: string
+  reason: string
+  situation: string
+}
+
 interface Player {
   nickname: string
   avatar: string
@@ -569,6 +598,9 @@ interface Player {
   matchesPlayed?: number
   recentMatches?: number
   voiceActivity?: 'silent' | 'callouts' | 'talkative'
+  // Position tendencies and counter strategies
+  mapTendencies?: MapTendency[]
+  counterGuns?: CounterGun[]
 }
 
 interface MapStats {
@@ -641,6 +673,7 @@ interface EnemyWeakness {
 
 interface MatchAnalysis {
   matchId: string
+  matchInfo?: MatchInfo
   yourTeam: TeamAnalysis
   enemyTeam: TeamAnalysis
   recommendedMap: string
@@ -1471,6 +1504,103 @@ export default function Home() {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-6"
                   >
+                    {/* Match Status Banner */}
+                    {analysis.matchInfo && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`glass rounded-2xl p-4 border-2 ${
+                          analysis.matchInfo.status === 'ONGOING' ? 'border-green-500/50 bg-green-950/20' :
+                          analysis.matchInfo.status === 'VOTING' || analysis.matchInfo.status === 'CONFIGURING' ? 'border-yellow-500/50 bg-yellow-950/20' :
+                          analysis.matchInfo.status === 'FINISHED' ? 'border-gray-500/50 bg-gray-950/20' :
+                          analysis.matchInfo.status === 'READY' ? 'border-blue-500/50 bg-blue-950/20' :
+                          'border-accent/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between flex-wrap gap-4">
+                          <div className="flex items-center gap-3">
+                            {analysis.matchInfo.status === 'ONGOING' && (
+                              <div className="flex items-center gap-2">
+                                <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                                <span className="text-green-400 font-bold">GAME IN PROGRESS</span>
+                              </div>
+                            )}
+                            {analysis.matchInfo.status === 'VOTING' && (
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-5 h-5 text-yellow-400" />
+                                <span className="text-yellow-400 font-bold">MAP VETO IN PROGRESS</span>
+                              </div>
+                            )}
+                            {analysis.matchInfo.status === 'CONFIGURING' && (
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-5 h-5 text-yellow-400" />
+                                <span className="text-yellow-400 font-bold">SERVER CONFIGURING</span>
+                              </div>
+                            )}
+                            {analysis.matchInfo.status === 'READY' && (
+                              <div className="flex items-center gap-2">
+                                <ChevronUp className="w-5 h-5 text-blue-400" />
+                                <span className="text-blue-400 font-bold">READY TO START</span>
+                              </div>
+                            )}
+                            {analysis.matchInfo.status === 'FINISHED' && (
+                              <div className="flex items-center gap-2">
+                                <Check className="w-5 h-5 text-gray-400" />
+                                <span className="text-gray-400 font-bold">MATCH FINISHED</span>
+                              </div>
+                            )}
+                            {analysis.matchInfo.status === 'CANCELLED' && (
+                              <div className="flex items-center gap-2">
+                                <X className="w-5 h-5 text-red-400" />
+                                <span className="text-red-400 font-bold">MATCH CANCELLED</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-6 text-sm">
+                            {/* Map Status */}
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-4 h-4 text-muted" />
+                              {analysis.matchInfo.mapChosen ? (
+                                <span className="text-accent">Map: {analysis.matchInfo.selectedMaps?.[0] || analysis.recommendedMap}</span>
+                              ) : (
+                                <span className="text-yellow-400">Map not chosen yet</span>
+                              )}
+                            </div>
+                            
+                            {/* Game Status */}
+                            <div className="flex items-center gap-2">
+                              <Activity className="w-4 h-4 text-muted" />
+                              {analysis.matchInfo.gameStarted ? (
+                                <span className="text-green-400">Game started</span>
+                              ) : (
+                                <span className="text-yellow-400">Game not started</span>
+                              )}
+                            </div>
+                            
+                            {/* Banned Maps */}
+                            {analysis.matchInfo.bannedMaps && analysis.matchInfo.bannedMaps.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <Ban className="w-4 h-4 text-red-400" />
+                                <span className="text-red-400">Banned: {analysis.matchInfo.bannedMaps.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Additional info for pre-game */}
+                        {!analysis.matchInfo.gameStarted && analysis.matchInfo.status !== 'FINISHED' && (
+                          <div className="mt-3 pt-3 border-t border-white/10">
+                            <p className="text-sm text-muted">
+                              {analysis.matchInfo.status === 'VOTING' && '🗳️ Players are picking and banning maps. Check back soon for the final map.'}
+                              {analysis.matchInfo.status === 'CONFIGURING' && '⚙️ Server is being configured. Game will start shortly.'}
+                              {analysis.matchInfo.status === 'READY' && '✅ Server is ready! Players should be connecting now.'}
+                            </p>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
                     {/* Visual Strategy Preview */}
                     <div className="grid md:grid-cols-3 gap-6 mb-6">
                       <div className="glass rounded-2xl p-6">
@@ -1917,6 +2047,66 @@ export default function Home() {
                                 </div>
                               </div>
                             )}
+                            
+                            {/* Position Tendencies - WHERE THEY GO */}
+                            {player.mapTendencies && player.mapTendencies.length > 0 && (
+                              <details className="mb-3 group">
+                                <summary className="text-xs text-muted mb-2 flex items-center gap-1 cursor-pointer hover:text-accent transition-colors">
+                                  <Navigation className="w-3 h-3" /> 
+                                  <span>Where They Go On Each Map</span>
+                                  <ChevronDown className="w-3 h-3 ml-auto group-open:rotate-180 transition-transform" />
+                                </summary>
+                                <div className="mt-2 space-y-2 pl-4 border-l-2 border-accent/30">
+                                  {player.mapTendencies.slice(0, 3).map((tendency) => (
+                                    <div key={tendency.map} className="text-xs bg-surface-lighter/50 rounded-lg p-2">
+                                      <div className="font-semibold text-accent mb-1">{tendency.map}</div>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                          <span className="text-amber-400">T-Side:</span>
+                                          <span className="text-muted ml-1">{tendency.tSideSpots?.join(', ')}</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-blue-400">CT-Side:</span>
+                                          <span className="text-muted ml-1">{tendency.ctSideSpots?.join(', ')}</span>
+                                        </div>
+                                      </div>
+                                      <div className="mt-1">
+                                        <span className="text-purple-400">Behavior:</span>
+                                        <span className="text-muted ml-1">{tendency.behavior}</span>
+                                      </div>
+                                      <div className="mt-1 text-green-400 bg-green-950/30 rounded p-1">
+                                        💡 {tendency.tipAgainst}
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {player.mapTendencies.length > 3 && (
+                                    <div className="text-xs text-muted">+ {player.mapTendencies.length - 3} more maps...</div>
+                                  )}
+                                </div>
+                              </details>
+                            )}
+                            
+                            {/* Counter Guns - WHAT TO USE AGAINST THEM */}
+                            {player.counterGuns && player.counterGuns.length > 0 && (
+                              <div className="mb-3">
+                                <div className="text-xs text-muted mb-2 flex items-center gap-1">
+                                  <Crosshair className="w-3 h-3" /> Guns To Use Against Them
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {player.counterGuns.slice(0, 4).map((gun, idx) => (
+                                    <div 
+                                      key={idx} 
+                                      className="text-xs px-2 py-1 rounded bg-accent/20 text-accent cursor-help"
+                                      title={`${gun.reason} (${gun.situation})`}
+                                    >
+                                      🔫 {gun.gun}
+                                      <span className="text-muted ml-1">({gun.situation})</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
                             {player.weaknesses && player.weaknesses.length > 0 && (
                               <div className="flex flex-wrap gap-2">
                                 {player.weaknesses.slice(0, 3).map((w, idx) => (
