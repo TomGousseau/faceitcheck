@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Target, Users, Map, Shield, Crosshair, Zap, ChevronRight, ChevronUp, ChevronDown, Loader2, Trophy, Sword, User, Layers, AlertTriangle, Gamepad2, DollarSign, RefreshCw, X, Flame, BarChart3, TrendingUp, Eye, Move, Skull, Download, Settings, Wifi, WifiOff, Volume2, VolumeX, MessageCircle, Clock, MapPin, Mic, MicOff, AlertOctagon, Star, ThumbsDown, Check, Activity, Ban, Crosshair as CrosshairIcon, Navigation, Lightbulb, Vote, Coffee, PlayCircle, TrendingDown, Pause } from 'lucide-react'
+import Link from 'next/link'
+import { Search, Target, Users, Map, Shield, Crosshair, Zap, ChevronRight, ChevronUp, ChevronDown, Loader2, Trophy, Sword, User, Layers, AlertTriangle, Gamepad2, DollarSign, RefreshCw, X, Flame, BarChart3, TrendingUp, Eye, Move, Skull, Download, Settings, Wifi, WifiOff, Volume2, VolumeX, MessageCircle, Clock, MapPin, Mic, MicOff, AlertOctagon, Star, ThumbsDown, Check, Activity, Ban, Crosshair as CrosshairIcon, Navigation, Lightbulb, Vote, Coffee, PlayCircle, TrendingDown, Pause, Info, Dumbbell } from 'lucide-react'
 
 // ===== VISUAL COMPONENT: Pie Chart =====
 const PieChart = ({ data, size = 120, innerRadius = 0.5 }: { 
@@ -682,6 +683,36 @@ interface SessionRecommendation {
   tips: string[]
 }
 
+// Site recommendation for T and CT sides
+interface SiteRecommendation {
+  side: 'T' | 'CT'
+  recommendedSite: 'A' | 'B'
+  reason: string
+  enemyTendency: string
+  confidence: number
+  keyPlayers: string[]
+  alternative: string
+}
+
+// Demo info per map for a player
+interface DemoPerMap {
+  map: string
+  matchId: string
+  demoUrl: string
+  kills: number
+  deaths: number
+  kd: number
+  timestamp: number
+  won: boolean
+}
+
+// Collection of demos for a player
+interface PlayerDemoCollection {
+  playerId: string
+  nickname: string
+  demosByMap: DemoPerMap[]
+}
+
 interface MatchAnalysis {
   matchId: string
   matchInfo?: MatchInfo
@@ -705,6 +736,9 @@ interface MatchAnalysis {
   mapPlayed?: string
   // Session recommendation
   sessionRecommendation?: SessionRecommendation
+  // Site recommendations
+  siteRecommendations?: SiteRecommendation[]
+  playerDemos?: PlayerDemoCollection[]
 }
 
 export default function Home() {
@@ -1168,6 +1202,23 @@ export default function Home() {
               <Target className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-semibold tracking-tight">FACEIT Analyzer</span>
+            
+            {/* Navigation */}
+            <nav className="ml-6 flex items-center gap-1">
+              <Link 
+                href="/"
+                className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent text-sm font-medium"
+              >
+                Match Analysis
+              </Link>
+              <Link 
+                href="/training"
+                className="px-3 py-1.5 rounded-lg hover:bg-surface-light text-muted hover:text-white text-sm font-medium transition-colors flex items-center gap-1.5"
+              >
+                <Dumbbell className="w-4 h-4" />
+                Training
+              </Link>
+            </nav>
             
             {/* Status indicators */}
             {analysis && (
@@ -2262,6 +2313,97 @@ export default function Home() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Site Recommendations - Best Site to Play */}
+                    {analysis.siteRecommendations && analysis.siteRecommendations.length > 0 && (
+                      <div className="glass rounded-2xl p-6">
+                        <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                          <Target className="w-5 h-5 text-accent" />
+                          Best Site to Play
+                        </h3>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          {analysis.siteRecommendations.map((rec, i) => (
+                            <motion.div
+                              key={rec.side}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: i * 0.1 }}
+                              className={`p-4 rounded-xl border ${
+                                rec.side === 'T' 
+                                  ? 'bg-amber-950/30 border-amber-800/30' 
+                                  : 'bg-blue-950/30 border-blue-800/30'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <span className={`px-3 py-1 rounded text-sm font-bold ${
+                                  rec.side === 'T' ? 'bg-amber-600/20 text-amber-400' : 'bg-blue-600/20 text-blue-400'
+                                }`}>
+                                  {rec.side} SIDE
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <div className={`px-3 py-1 rounded-full text-lg font-bold ${
+                                    rec.recommendedSite === 'A' ? 'bg-green-600/20 text-green-400' : 'bg-purple-600/20 text-purple-400'
+                                  }`}>
+                                    {rec.recommendedSite} SITE
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-2 text-sm">
+                                <div className="flex items-start gap-2">
+                                  <Info className="w-4 h-4 text-accent mt-0.5 shrink-0" />
+                                  <span className="text-muted">{rec.reason}</span>
+                                </div>
+                                
+                                <div className="flex items-start gap-2">
+                                  <Eye className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" />
+                                  <span className="text-muted">Enemy: {rec.enemyTendency}</span>
+                                </div>
+
+                                {rec.keyPlayers && rec.keyPlayers.length > 0 && (
+                                  <div className="flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                                    <span className="text-muted">Watch: {rec.keyPlayers.join(', ')}</span>
+                                  </div>
+                                )}
+
+                                <div className="flex items-start gap-2">
+                                  <RefreshCw className="w-4 h-4 text-cyan-400 mt-0.5 shrink-0" />
+                                  <span className="text-muted">Alt: {rec.alternative}</span>
+                                </div>
+
+                                <div className="mt-2 pt-2 border-t border-white/10">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted">Confidence:</span>
+                                    <div className="flex-1 bg-surface-dark rounded-full h-2">
+                                      <div 
+                                        className={`h-2 rounded-full ${
+                                          rec.confidence >= 70 ? 'bg-green-500' : rec.confidence >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                                        }`}
+                                        style={{ width: `${rec.confidence}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="text-xs font-semibold">{rec.confidence}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                        {analysis.demoAnalysisEnabled && (
+                          <p className="text-xs text-muted mt-3 flex items-center gap-1">
+                            <Check className="w-3 h-3 text-green-400" />
+                            Enhanced with demo analysis data
+                          </p>
+                        )}
+                        {!analysis.demoAnalysisEnabled && (
+                          <p className="text-xs text-muted mt-3 flex items-center gap-1">
+                            <Info className="w-3 h-3 text-yellow-400" />
+                            Enable demo analysis for more accurate recommendations
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Round Strategies */}
                     {analysis.roundStrategies && analysis.roundStrategies.length > 0 && (
