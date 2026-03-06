@@ -103,6 +103,17 @@ type CounterGun struct {
 	Situation string `json:"situation"` // "close range", "long range", "eco", "buy round"
 }
 
+// SessionRecommendation tells player if they should continue or take a break
+type SessionRecommendation struct {
+	ShouldContinue  bool     `json:"shouldContinue"`
+	Recommendation  string   `json:"recommendation"`  // "keep playing", "take a break", "lock in"
+	Reason          string   `json:"reason"`
+	PerformanceTrend string  `json:"performanceTrend"` // "improving", "stable", "declining"
+	RecentWinRate   int      `json:"recentWinRate"`    // Last 5-10 matches
+	MentalState     string   `json:"mentalState"`      // "confident", "neutral", "tilted"
+	Tips            []string `json:"tips"`
+}
+
 // PositionPoint for heatmap data
 type PositionPoint struct {
 	X float64 `json:"x"`
@@ -199,25 +210,26 @@ type MatchInfo struct {
 }
 
 type MatchAnalysis struct {
-	MatchID            string              `json:"matchId"`
-	MatchInfo          MatchInfo           `json:"matchInfo"`
-	YourTeam           TeamAnalysis        `json:"yourTeam"`
-	EnemyTeam          TeamAnalysis        `json:"enemyTeam"`
-	RecommendedMap     string              `json:"recommendedMap"`
-	RecommendedSide    string              `json:"recommendedSide"`
-	BanSuggestions     []string            `json:"banSuggestions"`
-	PickOrder          []string            `json:"pickOrder"`
-	Strategies         []Strategy          `json:"strategies"`
-	SoloStrategies     []SoloStrategy      `json:"soloStrategies"`
-	TeamStrategies     []TeamStrategy      `json:"teamStrategies"`
-	GunRecommendations []GunRecommendation `json:"gunRecommendations"`
-	RoundStrategies    []RoundStrategy     `json:"roundStrategies"`
-	EnemyWeaknesses    []EnemyWeakness     `json:"enemyWeaknesses"`
-	WinProbability     int                 `json:"winProbability"`
-	KeyToVictory       string              `json:"keyToVictory"`
-	DemoAnalysisEnabled bool               `json:"demoAnalysisEnabled"`
-	DemoURLs           []string            `json:"demoUrls,omitempty"`
-	MapPlayed          string              `json:"mapPlayed,omitempty"`
+	MatchID              string                `json:"matchId"`
+	MatchInfo            MatchInfo             `json:"matchInfo"`
+	YourTeam             TeamAnalysis          `json:"yourTeam"`
+	EnemyTeam            TeamAnalysis          `json:"enemyTeam"`
+	RecommendedMap       string                `json:"recommendedMap"`
+	RecommendedSide      string                `json:"recommendedSide"`
+	BanSuggestions       []string              `json:"banSuggestions"`
+	PickOrder            []string              `json:"pickOrder"`
+	Strategies           []Strategy            `json:"strategies"`
+	SoloStrategies       []SoloStrategy        `json:"soloStrategies"`
+	TeamStrategies       []TeamStrategy        `json:"teamStrategies"`
+	GunRecommendations   []GunRecommendation   `json:"gunRecommendations"`
+	RoundStrategies      []RoundStrategy       `json:"roundStrategies"`
+	EnemyWeaknesses      []EnemyWeakness       `json:"enemyWeaknesses"`
+	WinProbability       int                   `json:"winProbability"`
+	KeyToVictory         string                `json:"keyToVictory"`
+	DemoAnalysisEnabled  bool                  `json:"demoAnalysisEnabled"`
+	DemoURLs             []string              `json:"demoUrls,omitempty"`
+	MapPlayed            string                `json:"mapPlayed,omitempty"`
+	SessionRecommendation *SessionRecommendation `json:"sessionRecommendation,omitempty"`
 }
 
 // AnalyzeRequest represents the analysis request
@@ -1062,25 +1074,32 @@ func analyzeTeams(matchID string, yourPlayers, enemyPlayers []Player) *MatchAnal
 
 	// Generate key to victory
 	keyToVictory := generateKeyToVictory(yourTeam, enemyTeam, recommendedMap)
+	
+	// Generate session recommendation for the user (assumes first player in yourPlayers is you)
+	var sessionRec *SessionRecommendation
+	if len(yourPlayers) > 0 {
+		sessionRec = generateSessionRecommendation(yourPlayers[0])
+	}
 
 	return &MatchAnalysis{
-		MatchID:            matchID,
-		YourTeam:           yourTeam,
-		EnemyTeam:          enemyTeam,
-		RecommendedMap:     recommendedMap,
-		RecommendedSide:    recommendedSide,
-		BanSuggestions:     banSuggestions,
-		PickOrder:          pickOrder,
-		Strategies:         strategies,
-		SoloStrategies:     soloStrategies,
-		TeamStrategies:     teamStrategies,
-		GunRecommendations: gunRecommendations,
-		RoundStrategies:    roundStrategies,
-		EnemyWeaknesses:    enemyWeaknesses,
-		WinProbability:     winProb,
-		KeyToVictory:       keyToVictory,
-		DemoAnalysisEnabled: IsDemoAnalysisEnabled(),
-		MapPlayed:          recommendedMap,
+		MatchID:               matchID,
+		YourTeam:              yourTeam,
+		EnemyTeam:             enemyTeam,
+		RecommendedMap:        recommendedMap,
+		RecommendedSide:       recommendedSide,
+		BanSuggestions:        banSuggestions,
+		PickOrder:             pickOrder,
+		Strategies:            strategies,
+		SoloStrategies:        soloStrategies,
+		TeamStrategies:        teamStrategies,
+		GunRecommendations:    gunRecommendations,
+		RoundStrategies:       roundStrategies,
+		EnemyWeaknesses:       enemyWeaknesses,
+		WinProbability:        winProb,
+		KeyToVictory:          keyToVictory,
+		DemoAnalysisEnabled:   IsDemoAnalysisEnabled(),
+		MapPlayed:             recommendedMap,
+		SessionRecommendation: sessionRec,
 	}
 }
 
@@ -2554,4 +2573,105 @@ func generateCounterGuns(p Player) []CounterGun {
 	}
 	
 	return guns
+}
+
+// generateSessionRecommendation analyzes player performance and suggests continue/break
+func generateSessionRecommendation(player Player) *SessionRecommendation {
+	rec := &SessionRecommendation{
+		Tips: []string{},
+	}
+	
+	// Analyze recent form and stats
+	recentWinRate := player.WinRate
+	kd := player.AvgKD
+	consistency := player.Consistency
+	form := player.RecentForm
+	
+	// Determine performance trend based on form
+	switch form {
+	case "hot":
+		rec.PerformanceTrend = "improving"
+		rec.RecentWinRate = recentWinRate + 10
+	case "warm":
+		rec.PerformanceTrend = "stable"
+		rec.RecentWinRate = recentWinRate
+	case "cold":
+		rec.PerformanceTrend = "declining"
+		rec.RecentWinRate = recentWinRate - 10
+	default:
+		rec.PerformanceTrend = "stable"
+		rec.RecentWinRate = recentWinRate
+	}
+	
+	// Clamp win rate between 0 and 100
+	rec.RecentWinRate = clamp(rec.RecentWinRate, 0, 100)
+	
+	// Determine mental state based on consistency and form
+	if form == "hot" && consistency >= 70 {
+		rec.MentalState = "confident"
+	} else if form == "cold" || consistency < 40 {
+		rec.MentalState = "tilted"
+	} else {
+		rec.MentalState = "neutral"
+	}
+	
+	// Generate recommendation
+	if form == "hot" && kd >= 1.0 && rec.RecentWinRate >= 55 {
+		rec.ShouldContinue = true
+		rec.Recommendation = "keep playing"
+		rec.Reason = fmt.Sprintf("You're on fire! %.2f K/D with %d%% win rate. Ride the momentum!", kd, rec.RecentWinRate)
+		rec.Tips = []string{
+			"Maintain your warm-up routine",
+			"Stay hydrated and focused",
+			"Keep using strategies that work",
+			"Don't get overconfident - stay humble",
+		}
+	} else if form == "cold" && (kd < 0.9 || rec.RecentWinRate < 40) {
+		rec.ShouldContinue = false
+		rec.Recommendation = "take a break"
+		rec.Reason = fmt.Sprintf("Performance declining (%.2f K/D, %d%% WR). Step back, reset mental.", kd, rec.RecentWinRate)
+		rec.Tips = []string{
+			"Take a 15-30 minute break",
+			"Do some aim training in workshop maps",
+			"Watch a demo to review mistakes",
+			"Stretch and hydrate before returning",
+			"Consider playing DM to warm up again",
+		}
+	} else if form == "cold" && kd >= 0.9 {
+		rec.ShouldContinue = true
+		rec.Recommendation = "lock in"
+		rec.Reason = fmt.Sprintf("Stats are decent (%.2f K/D) but losing games. Focus up and lock in!", kd, rec.RecentWinRate)
+		rec.Tips = []string{
+			"Focus on communication and callouts",
+			"Play your role - don't overextend",
+			"Trade your teammates better",
+			"Play for team, not for stats",
+			"Review common mistakes between rounds",
+		}
+	} else if form == "warm" {
+		rec.ShouldContinue = true
+		rec.Recommendation = "keep playing"
+		rec.Reason = fmt.Sprintf("Stable performance (%.2f K/D, %d%% WR). Good to continue.", kd, rec.RecentWinRate)
+		rec.Tips = []string{
+			"Stay consistent with your playstyle",
+			"Communicate with your team",
+			"Focus on fundamentals",
+		}
+	} else {
+		// Default case
+		rec.ShouldContinue = true
+		rec.Recommendation = "keep playing"
+		rec.Reason = "Performance is acceptable. Continue if you feel good."
+		rec.Tips = []string{
+			"Stay focused",
+			"Communicate effectively",
+		}
+	}
+	
+	// Add tilt warning if mental state is tilted
+	if rec.MentalState == "tilted" {
+		rec.Tips = append([]string{"Warning: Signs of tilt detected. Consider taking a break."}, rec.Tips...)
+	}
+	
+	return rec
 }

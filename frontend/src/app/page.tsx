@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Target, Users, Map, Shield, Crosshair, Zap, ChevronRight, ChevronUp, ChevronDown, Loader2, Trophy, Sword, User, Layers, AlertTriangle, Gamepad2, DollarSign, RefreshCw, X, Flame, BarChart3, TrendingUp, Eye, Move, Skull, Download, Settings, Wifi, WifiOff, Volume2, VolumeX, MessageCircle, Clock, MapPin, Mic, MicOff, AlertOctagon, Star, ThumbsDown, Check, Activity, Ban, Crosshair as CrosshairIcon, Navigation } from 'lucide-react'
+import { Search, Target, Users, Map, Shield, Crosshair, Zap, ChevronRight, ChevronUp, ChevronDown, Loader2, Trophy, Sword, User, Layers, AlertTriangle, Gamepad2, DollarSign, RefreshCw, X, Flame, BarChart3, TrendingUp, Eye, Move, Skull, Download, Settings, Wifi, WifiOff, Volume2, VolumeX, MessageCircle, Clock, MapPin, Mic, MicOff, AlertOctagon, Star, ThumbsDown, Check, Activity, Ban, Crosshair as CrosshairIcon, Navigation, Lightbulb, Vote, Coffee, PlayCircle, TrendingDown, Pause } from 'lucide-react'
 
 // ===== VISUAL COMPONENT: Pie Chart =====
 const PieChart = ({ data, size = 120, innerRadius = 0.5 }: { 
@@ -671,6 +671,17 @@ interface EnemyWeakness {
   exploitation: string
 }
 
+// Session recommendation for continue/break decision
+interface SessionRecommendation {
+  shouldContinue: boolean
+  recommendation: string
+  reason: string
+  performanceTrend: 'improving' | 'stable' | 'declining'
+  recentWinRate: number
+  mentalState: 'confident' | 'neutral' | 'tilted'
+  tips: string[]
+}
+
 interface MatchAnalysis {
   matchId: string
   matchInfo?: MatchInfo
@@ -692,6 +703,8 @@ interface MatchAnalysis {
   demoAnalysisEnabled?: boolean
   demoUrls?: string[]
   mapPlayed?: string
+  // Session recommendation
+  sessionRecommendation?: SessionRecommendation
 }
 
 export default function Home() {
@@ -1592,10 +1605,88 @@ export default function Home() {
                         {!analysis.matchInfo.gameStarted && analysis.matchInfo.status !== 'FINISHED' && (
                           <div className="mt-3 pt-3 border-t border-white/10">
                             <p className="text-sm text-muted">
-                              {analysis.matchInfo.status === 'VOTING' && '🗳️ Players are picking and banning maps. Check back soon for the final map.'}
-                              {analysis.matchInfo.status === 'CONFIGURING' && '⚙️ Server is being configured. Game will start shortly.'}
-                              {analysis.matchInfo.status === 'READY' && '✅ Server is ready! Players should be connecting now.'}
+                              {analysis.matchInfo.status === 'VOTING' && <span className="flex items-center gap-2"><Vote className="w-4 h-4" /> Players are picking and banning maps. Check back soon for the final map.</span>}
+                              {analysis.matchInfo.status === 'CONFIGURING' && <span className="flex items-center gap-2"><Settings className="w-4 h-4 animate-spin" /> Server is being configured. Game will start shortly.</span>}
+                              {analysis.matchInfo.status === 'READY' && <span className="flex items-center gap-2"><Check className="w-4 h-4" /> Server is ready! Players should be connecting now.</span>}
                             </p>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Session Recommendation - Should you keep playing? */}
+                    {analysis.sessionRecommendation && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`glass rounded-2xl p-4 border-2 ${
+                          analysis.sessionRecommendation.recommendation === 'keep playing' ? 'border-green-500/50 bg-green-950/20' :
+                          analysis.sessionRecommendation.recommendation === 'take a break' ? 'border-red-500/50 bg-red-950/20' :
+                          analysis.sessionRecommendation.recommendation === 'lock in' ? 'border-yellow-500/50 bg-yellow-950/20' :
+                          'border-accent/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            {analysis.sessionRecommendation.recommendation === 'keep playing' && (
+                              <>
+                                <PlayCircle className="w-6 h-6 text-green-400" />
+                                <span className="text-green-400 font-bold text-lg">KEEP PLAYING</span>
+                              </>
+                            )}
+                            {analysis.sessionRecommendation.recommendation === 'take a break' && (
+                              <>
+                                <Coffee className="w-6 h-6 text-red-400" />
+                                <span className="text-red-400 font-bold text-lg">TAKE A BREAK</span>
+                              </>
+                            )}
+                            {analysis.sessionRecommendation.recommendation === 'lock in' && (
+                              <>
+                                <Target className="w-6 h-6 text-yellow-400" />
+                                <span className="text-yellow-400 font-bold text-lg">LOCK IN</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4 text-sm">
+                            <div className="flex items-center gap-2">
+                              {analysis.sessionRecommendation.performanceTrend === 'improving' && <TrendingUp className="w-4 h-4 text-green-400" />}
+                              {analysis.sessionRecommendation.performanceTrend === 'declining' && <TrendingDown className="w-4 h-4 text-red-400" />}
+                              {analysis.sessionRecommendation.performanceTrend === 'stable' && <Activity className="w-4 h-4 text-yellow-400" />}
+                              <span className={`${
+                                analysis.sessionRecommendation.performanceTrend === 'improving' ? 'text-green-400' :
+                                analysis.sessionRecommendation.performanceTrend === 'declining' ? 'text-red-400' :
+                                'text-yellow-400'
+                              }`}>
+                                {analysis.sessionRecommendation.performanceTrend}
+                              </span>
+                            </div>
+                            <div className="text-muted">
+                              Recent WR: <span className={analysis.sessionRecommendation.recentWinRate >= 50 ? 'text-green-400' : 'text-red-400'}>
+                                {analysis.sessionRecommendation.recentWinRate}%
+                              </span>
+                            </div>
+                            <div className={`px-2 py-0.5 rounded text-xs ${
+                              analysis.sessionRecommendation.mentalState === 'confident' ? 'bg-green-600/20 text-green-400' :
+                              analysis.sessionRecommendation.mentalState === 'tilted' ? 'bg-red-600/20 text-red-400' :
+                              'bg-gray-600/20 text-gray-400'
+                            }`}>
+                              {analysis.sessionRecommendation.mentalState}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-muted mb-3">{analysis.sessionRecommendation.reason}</p>
+                        {analysis.sessionRecommendation.tips && analysis.sessionRecommendation.tips.length > 0 && (
+                          <div className="border-t border-white/10 pt-3">
+                            <div className="text-xs text-muted mb-2 flex items-center gap-1">
+                              <Lightbulb className="w-3 h-3" /> Tips:
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {analysis.sessionRecommendation.tips.slice(0, 4).map((tip, idx) => (
+                                <span key={idx} className="text-xs px-2 py-1 bg-surface-lighter rounded">
+                                  {tip}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </motion.div>
@@ -1966,7 +2057,7 @@ export default function Home() {
                                 <div className="font-semibold flex items-center gap-2 flex-wrap">
                                   {player.nickname}
                                   {(player.recentForm === 'cold' || player.avgKD < 0.95) && <span className="text-xs bg-red-600/30 text-red-300 px-2 py-0.5 rounded animate-pulse">TARGET</span>}
-                                  {player.threatLevel === 'extreme' && <span className="text-xs bg-orange-600/30 text-orange-300 px-2 py-0.5 rounded">⚠️ DANGER</span>}
+                                  {player.threatLevel === 'extreme' && <span className="text-xs bg-orange-600/30 text-orange-300 px-2 py-0.5 rounded flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> DANGER</span>}
                                   {/* Behavior badges */}
                                   {player.isBottomFrag && <span title="Usually bottom frag"><ThumbsDown className="w-4 h-4 text-red-400" /></span>}
                                   {player.voiceActivity === 'silent' && <span title="No comms - easy target"><MicOff className="w-4 h-4 text-gray-400" /></span>}
@@ -2075,7 +2166,7 @@ export default function Home() {
                                         <span className="text-muted ml-1">{tendency.behavior}</span>
                                       </div>
                                       <div className="mt-1 text-green-400 bg-green-950/30 rounded p-1">
-                                        💡 {tendency.tipAgainst}
+                                        <Lightbulb className="w-3 h-3 inline mr-1" />{tendency.tipAgainst}
                                       </div>
                                     </div>
                                   ))}
@@ -2099,7 +2190,7 @@ export default function Home() {
                                       className="text-xs px-2 py-1 rounded bg-accent/20 text-accent cursor-help"
                                       title={`${gun.reason} (${gun.situation})`}
                                     >
-                                      🔫 {gun.gun}
+                                      <Crosshair className="w-3 h-3 inline mr-1" />{gun.gun}
                                       <span className="text-muted ml-1">({gun.situation})</span>
                                     </div>
                                   ))}
@@ -2196,7 +2287,7 @@ export default function Home() {
                               {rs.keyPoints && rs.keyPoints.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-3">
                                   {rs.keyPoints.map((kp, idx) => (
-                                    <span key={idx} className="text-xs px-2 py-1 bg-surface-lighter rounded">💡 {kp}</span>
+                                    <span key={idx} className="text-xs px-2 py-1 bg-surface-lighter rounded flex items-center gap-1"><Lightbulb className="w-3 h-3" />{kp}</span>
                                   ))}
                                 </div>
                               )}
