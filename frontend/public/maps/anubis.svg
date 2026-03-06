@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="mapBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#mapBg)"/>
+  <!-- Canal -->
+  <path d="M200 400 L500 400" stroke="#06b6d4" stroke-width="40" fill="none" opacity="0.3"/>
+  <text x="350" y="380" fill="#06b6d4" font-size="16">CANAL</text>
+  <!-- Main Mid -->
+  <path d="M500 250 L500 600" stroke="#22c55e" stroke-width="35" fill="none" opacity="0.3"/>
+  <text x="520" y="430" fill="#22c55e" font-size="16">MID</text>
+  <!-- Palace/Ruins -->
+  <path d="M200 650 L400 650 L500 550" stroke="#f59e0b" stroke-width="30" fill="none" opacity="0.3"/>
+  <text x="300" y="630" fill="#f59e0b" font-size="14">RUINS</text>
+  <!-- A Site -->
+  <rect x="580" y="150" width="180" height="170" fill="#ef4444" opacity="0.4" rx="10"/>
+  <text x="670" y="245" text-anchor="middle" fill="#fff" font-size="36" font-weight="bold">A</text>
+  <!-- B Site -->
+  <rect x="580" y="450" width="180" height="170" fill="#3b82f6" opacity="0.4" rx="10"/>
+  <text x="670" y="545" text-anchor="middle" fill="#fff" font-size="36" font-weight="bold">B</text>
+  <!-- Bridge -->
+  <rect x="430" y="500" width="100" height="60" fill="#8b5cf6" opacity="0.3" rx="5"/>
+  <text x="480" y="540" text-anchor="middle" fill="#fff" font-size="14">BRIDGE</text>
+  <!-- T Spawn -->
+  <circle cx="150" cy="530" r="50" fill="#f59e0b" opacity="0.5"/>
+  <text x="150" y="540" text-anchor="middle" fill="#fff" font-size="20" font-weight="bold">T</text>
+  <!-- CT Spawn -->
+  <circle cx="850" cy="350" r="50" fill="#06b6d4" opacity="0.5"/>
+  <text x="850" y="360" text-anchor="middle" fill="#fff" font-size="20" font-weight="bold">CT</text>
+  <!-- Map name -->
+  <text x="512" y="950" text-anchor="middle" fill="#64748b" font-size="48" font-weight="bold">ANUBIS</text>
+</svg>
