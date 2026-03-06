@@ -7,6 +7,8 @@ A modern, real-time FACEIT match analyzer with WebSocket support that helps you 
 ![Go](https://img.shields.io/badge/backend-Go-00ADD8)
 ![WebSocket](https://img.shields.io/badge/realtime-WebSocket-green)
 
+> **New user?** Check out the detailed [Setup Guide](SETUP.md) for step-by-step instructions.
+
 ## Features
 
 ### Core Analysis
@@ -28,10 +30,15 @@ A modern, real-time FACEIT match analyzer with WebSocket support that helps you 
 - 🤝 **Teamwork Rating** - Player cooperation metrics
 
 ### Tactical Tools
-- 🗺️ **Interactive Map Display** - Visual tactical maps for all CS2 maps
+- 🗺️ **Map Callouts** - Complete callout reference for all CS2 competitive maps
 - 📍 **Strategy Suggestions** - A/B site strategies with utility callouts
 - 🎯 **Solo & Team Strategies** - Personal tips and team execution plans
 - 💰 **Economy Guide** - Buy recommendations for all economy states
+- 🔄 **Map Veto Helper** - Suggested pick/ban order based on team strengths
+
+### Supported Maps
+All CS2 competitive maps with complete callout data:
+- Mirage, Inferno, Dust2, Nuke, Overpass, Ancient, Anubis, Vertigo
 
 ### UI/UX
 - 🌙 **Dark Theme** - Modern dark UI with glassmorphism effects
@@ -41,17 +48,16 @@ A modern, real-time FACEIT match analyzer with WebSocket support that helps you 
 
 ## Quick Start
 
-### Frontend (Next.js with Turbo)
+### 1. Clone & Configure
 
 ```bash
-cd frontend
-npm install
-npm run dev
+git clone https://github.com/TomGousseau/faceitcheck.git
+cd faceitcheck/backend
+cp .env.example .env
+# Edit .env with your FACEIT API keys
 ```
 
-Frontend runs on http://localhost:3000
-
-### Backend (Go)
+### 2. Start Backend
 
 ```bash
 cd backend
@@ -59,50 +65,28 @@ go mod tidy
 go run main.go
 ```
 
-Backend runs on http://localhost:8080
+### 3. Start Frontend
 
-## Configuration
-
-### Environment Variables
-
-Copy `.env.example` to `.env` in the backend folder and configure:
-
-```env
-# FACEIT API Keys
-FACEIT_PUBLIC_KEY=your_public_key_here
-FACEIT_PRIVATE_KEY=your_private_key_here
-
-# Demo Analysis (CPU intensive, optional)
-ENABLE_DEMO_ANALYSIS=no    # Set to "yes" to enable
-DEMO_ANALYSIS_COUNT=3       # Demos to analyze per player
-DEMO_CACHE_DIR=./demo_cache
-MAX_CONCURRENT_DOWNLOADS=2
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-### Demo Analysis (Advanced)
+### 4. Open App
 
-The analyzer can parse actual CS2 demo files to extract:
-- **Kill/Death Heatmaps** - See where players fight on each map
-- **Position Tendencies** - Identify common areas each player plays
-- **Detailed ADR** - Accurate damage stats from demo parsing
+Go to http://localhost:3000
 
-⚠️ **Warning**: Demo analysis is CPU intensive. Enable only if needed.
+> **Need help?** See the detailed [Setup Guide](SETUP.md) for troubleshooting.
 
-To enable:
-1. Set `ENABLE_DEMO_ANALYSIS=yes` in `.env`
-2. Restart the backend
-3. Demos will be downloaded and cached in `demo_cache/`
+## Getting FACEIT API Keys
 
-1. Click the ⚙️ settings icon in the top-right
-2. Enter your FACEIT username
-3. (Optional) Add your FACEIT API key for enhanced data
-
-### Getting a FACEIT API Key
-
-1. Go to https://developers.faceit.com/
+1. Go to [developers.faceit.com](https://developers.faceit.com/)
 2. Create an application
-3. Copy your API key
-4. Paste it in the settings
+3. Copy your Client ID and Client Secret
+4. Add them to `backend/.env`
+
+See [SETUP.md](SETUP.md) for detailed instructions.
 
 ## Usage
 

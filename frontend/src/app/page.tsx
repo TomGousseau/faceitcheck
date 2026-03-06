@@ -683,16 +683,64 @@ export default function Home() {
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null)
   const lastRefreshRef = useRef<Date | null>(null)
 
-  // CS2 Map images - local SVGs
-  const mapImages: Record<string, string> = {
-    'Mirage': '/maps/mirage.svg',
-    'Inferno': '/maps/inferno.svg',
-    'Dust2': '/maps/dust2.svg',
-    'Nuke': '/maps/nuke.svg',
-    'Overpass': '/maps/overpass.svg',
-    'Ancient': '/maps/ancient.svg',
-    'Anubis': '/maps/anubis.svg',
-    'Vertigo': '/maps/vertigo.svg',
+  // Map callout data for tactical display
+  const mapCallouts: Record<string, { aSite: string[], bSite: string[], mid: string[], tSpawn: string[], ctSpawn: string[] }> = {
+    'Mirage': { 
+      aSite: ['Tetris', 'Stairs', 'Sandwich', 'CT Spawn', 'Jungle', 'Triple Box'],
+      bSite: ['Van', 'Market Window', 'Bench', 'Short', 'Apps', 'Kitchen'],
+      mid: ['Window', 'Connector', 'Underpass', 'Top Mid', 'Catwalk'],
+      tSpawn: ['T Spawn', 'T Ramp', 'Palace'],
+      ctSpawn: ['CT', 'Ticket', 'Ladder']
+    },
+    'Inferno': {
+      aSite: ['Pit', 'Graveyard', 'Site', 'Balcony', 'Library', 'Arch'],
+      bSite: ['First Orange', 'Dark', 'New Box', 'Fountain', 'Construction', 'CT'],
+      mid: ['Top Mid', 'Mexico', 'Alt Mid', 'Underpass'],
+      tSpawn: ['T Spawn', 'Banana', 'Car', 'Logs'],
+      ctSpawn: ['CT Spawn', 'Speedway', 'Arch']
+    },
+    'Dust2': {
+      aSite: ['Long', 'Car', 'Site', 'Ramp', 'Goose', 'Short'],
+      bSite: ['Platform', 'Back Site', 'Big Box', 'Window', 'Double Door', 'Tunnel'],
+      mid: ['Mid Doors', 'Xbox', 'Catwalk', 'Palm'],
+      tSpawn: ['T Spawn', 'Long Doors', 'Upper Tunnels'],
+      ctSpawn: ['CT Spawn', 'Short Stairs', 'Ramp']
+    },
+    'Nuke': {
+      aSite: ['Heaven', 'Hell', 'Hut', 'Squeaky', 'Main', 'Vent'],
+      bSite: ['Ramp', 'Control Room', 'Secret', 'Decon', 'Dark', 'Window'],
+      mid: ['Lobby', 'Radio', 'Trophy'],
+      tSpawn: ['T Spawn', 'Outside', 'Garage', 'Silo'],
+      ctSpawn: ['CT Spawn', 'Heaven', 'Yard']
+    },
+    'Overpass': {
+      aSite: ['Long', 'Toilets', 'Truck', 'Van', 'Default', 'Bank'],
+      bSite: ['Monster', 'Pillar', 'Water', 'Heaven', 'Graffiti', 'Construction'],
+      mid: ['Connector', 'Playground'],
+      tSpawn: ['T Spawn', 'Fountain'],
+      ctSpawn: ['CT Spawn', 'Stairs']
+    },
+    'Ancient': {
+      aSite: ['Main', 'Donut', 'Red', 'Temple', 'Back Site'],
+      bSite: ['Ramp', 'Alley', 'Cave', 'Tile'],
+      mid: ['Mid', 'House', 'T Mid', 'Elbow'],
+      tSpawn: ['T Spawn', 'T Main'],
+      ctSpawn: ['CT Spawn', 'CT']
+    },
+    'Anubis': {
+      aSite: ['Main', 'Heaven', 'Alley', 'Palace', 'Water', 'Default'],
+      bSite: ['Main', 'Canal', 'Pillar', 'Bridge', 'Site'],
+      mid: ['Mid', 'Connector', 'Ruins'],
+      tSpawn: ['T Spawn', 'Street'],
+      ctSpawn: ['CT Spawn', 'Boat']
+    },
+    'Vertigo': {
+      aSite: ['Ramp', 'Elevator', 'Headshot', 'Default', 'Generator'],
+      bSite: ['Stairs', 'CT', 'Scaffolding', 'T Balcony', 'Site'],
+      mid: ['Mid', 'Mid Boost', 'Sandbags'],
+      tSpawn: ['T Spawn', 'T Stairs'],
+      ctSpawn: ['CT Spawn', 'Big Box']
+    }
   }
 
   // WebSocket connection
@@ -2240,30 +2288,120 @@ export default function Home() {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-6"
                   >
-                    {/* Map Visual */}
+                    {/* Map Overview */}
                     <div className="glass rounded-2xl p-6">
                       <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                         <MapPin className="w-5 h-5 text-accent" />
-                        Tactical Map - {analysis.recommendedMap}
+                        Tactical Overview - {analysis.recommendedMap}
                       </h3>
-                      <div className="relative">
-                        <img 
-                          src={mapImages[analysis.recommendedMap] || mapImages['Mirage']}
-                          alt={analysis.recommendedMap}
-                          className="w-full rounded-xl opacity-90"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent rounded-xl" />
-                        <div className="absolute bottom-4 left-4 right-4">
-                          <div className="glass rounded-xl p-4">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className={`px-3 py-1 rounded-lg text-sm font-bold ${
-                                analysis.recommendedSide === 'T' ? 'bg-orange-600' : 'bg-blue-600'
-                              }`}>
-                                {analysis.recommendedSide} SIDE
-                              </div>
-                              <span className="text-sm text-muted">Recommended starting side</span>
+                      
+                      {/* Map Layout Visualization */}
+                      <div className="relative bg-gradient-to-br from-surface-lighter to-surface rounded-2xl p-6 mb-6 overflow-hidden">
+                        {/* Grid Background */}
+                        <div className="absolute inset-0 opacity-10">
+                          <div className="absolute inset-0" style={{
+                            backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)',
+                            backgroundSize: '40px 40px'
+                          }} />
+                        </div>
+                        
+                        {/* Map Name Watermark */}
+                        <div className="absolute top-4 right-4 text-6xl font-black text-white/5 select-none">
+                          {analysis.recommendedMap.toUpperCase()}
+                        </div>
+
+                        <div className="relative grid grid-cols-3 gap-4">
+                          {/* T Side */}
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 mb-4">
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-600 to-orange-700 flex items-center justify-center font-bold text-lg shadow-lg shadow-orange-600/20">T</div>
+                              <span className="font-semibold">T Side Spawn</span>
                             </div>
-                            <p className="text-sm">{analysis.keyToVictory}</p>
+                            {mapCallouts[analysis.recommendedMap]?.tSpawn.map((spot, i) => (
+                              <div key={i} className="px-3 py-2 rounded-lg bg-orange-950/30 border border-orange-800/30 text-sm">
+                                <span className="text-orange-400">{spot}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Mid */}
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 mb-4 justify-center">
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-600 to-green-700 flex items-center justify-center font-bold shadow-lg shadow-green-600/20">
+                                <Crosshair className="w-5 h-5" />
+                              </div>
+                              <span className="font-semibold">Mid Control</span>
+                            </div>
+                            {mapCallouts[analysis.recommendedMap]?.mid.map((spot, i) => (
+                              <div key={i} className="px-3 py-2 rounded-lg bg-green-950/30 border border-green-800/30 text-sm text-center">
+                                <span className="text-green-400">{spot}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* CT Side */}
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 mb-4 justify-end">
+                              <span className="font-semibold">CT Side Spawn</span>
+                              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center font-bold text-lg shadow-lg shadow-blue-600/20">CT</div>
+                            </div>
+                            {mapCallouts[analysis.recommendedMap]?.ctSpawn.map((spot, i) => (
+                              <div key={i} className="px-3 py-2 rounded-lg bg-blue-950/30 border border-blue-800/30 text-sm text-right">
+                                <span className="text-blue-400">{spot}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Site Callouts Row */}
+                        <div className="grid grid-cols-2 gap-6 mt-6 pt-6 border-t border-white/10">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded bg-amber-600 flex items-center justify-center font-bold">A</div>
+                              <span className="font-semibold text-amber-400">A Site Callouts</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {mapCallouts[analysis.recommendedMap]?.aSite.map((spot, i) => (
+                                <span key={i} className="px-2 py-1 rounded bg-amber-950/40 border border-amber-700/30 text-xs text-amber-300">{spot}</span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 justify-end">
+                              <span className="font-semibold text-blue-400">B Site Callouts</span>
+                              <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center font-bold">B</div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 justify-end">
+                              {mapCallouts[analysis.recommendedMap]?.bSite.map((spot, i) => (
+                                <span key={i} className="px-2 py-1 rounded bg-blue-950/40 border border-blue-700/30 text-xs text-blue-300">{spot}</span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Recommended Side Banner */}
+                      <div className={`rounded-xl p-4 ${
+                        analysis.recommendedSide === 'T' 
+                          ? 'bg-gradient-to-r from-orange-950/50 to-orange-900/20 border border-orange-700/30' 
+                          : 'bg-gradient-to-r from-blue-950/50 to-blue-900/20 border border-blue-700/30'
+                      }`}>
+                        <div className="flex items-center gap-4">
+                          <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-2xl ${
+                            analysis.recommendedSide === 'T' ? 'bg-orange-600' : 'bg-blue-600'
+                          }`}>
+                            {analysis.recommendedSide}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold">Start {analysis.recommendedSide} Side</span>
+                              <span className="px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs font-semibold">RECOMMENDED</span>
+                            </div>
+                            <p className="text-sm text-muted">{analysis.keyToVictory}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-3xl font-bold text-green-400">{analysis.winProbability}%</div>
+                            <div className="text-xs text-muted">Win Probability</div>
                           </div>
                         </div>
                       </div>
