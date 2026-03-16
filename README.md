@@ -2,6 +2,8 @@
 
 A modern, real-time FACEIT match analyzer with WebSocket support that helps you dominate your CS2 matches.
 
+- AI made website that dont really work and need work 
+
 ![Dark Theme](https://img.shields.io/badge/theme-dark-black)
 ![Next.js](https://img.shields.io/badge/frontend-Next.js%2015-blue)
 ![Go](https://img.shields.io/badge/backend-Go-00ADD8)
